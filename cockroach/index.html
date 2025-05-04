@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kill the Cockroach</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2d2d2d"/>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #222;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .game-container {
+      text-align: center;
+      position: relative;
+      width: 100%; /* Default fluid width */
+    }
+    .game-started .game-container {
+      width: 1300px; /* Fixed width when the game starts */
+    }
+    h1 {
+      font-size: 2em;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    #cockroach-container {
+      position: relative;
+      width: 1300px;
+      height: 500px;
+      background-image: url('background.png');
+      background-size: cover;
+      background-position: center;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 20px auto;
+      display: none;
+    }
+    .cockroach {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      background-image: url('cockroach.png');
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+    }
+    #start-btn, #restart-btn {
+      padding: 10px 20px;
+      font-size: 1.1em;
+      background-color: green;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #start-btn:hover, #restart-btn:hover {
+      background-color: darkgreen;
+    }
+    #start-btn {
+      background-color: #4CAF50;
+      border: 2px solid #388E3C;
+      padding: 15px 30px;
+      font-size: 1.2em;
+      border-radius: 10px;
+      background-image: linear-gradient(to right, #81C784, #388E3C);
+      color: #fff;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    #game-over-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%; /* Use full width */
+  height: 100%; /* Use full height */
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center vertically */
+  align-items: center; /* Center horizontally */
+  border-radius: 10px;
+}
+#game-over-screen h2 {
+  font-size: 2.5em; /* Slightly larger text for emphasis */
+  margin-bottom: 20px; /* Increased margin for better spacing */
+  text-align: center; /* Ensure it is centered */
+}
+
+#final-score {
+  font-size: 2em; /* Larger font for the score */
+  margin-bottom: 30px; /* Increased margin to separate from the button */
+  text-align: center; /* Ensure it is centered */
+}
+
+
+    /* Info bar positioned outside of game layout at top-right */
+    #info-bar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 15px;
+      border-radius: 8px;
+      z-index: 9999;
+    }
+    #info-bar span {
+      color: #fff;
+      font-size: 1.1em;
+    }
+    #mute-btn {
+      cursor: pointer;
+      background: #333;
+      border: none;
+      color: #fff;
+      padding: 5px 10px;
+      font-size: 1.1em;
+      border-radius: 5px;
+      transition: background 0.3s ease;
+      margin-top: 10px;
+    }
+    #mute-btn:hover {
+      background: #555;
+    }
+  </style>
+</head>
+<body>
+  <div id="info-bar" style="display:none;">
+    <span id="timer">Time: 90s</span>
+    <span id="score">Kills: 0</span>
+    <button id="mute-btn">🔊</button>
+  </div>
+
+  <div id="game-wrapper">
+    <div class="game-container">
+      <h1>Are you ready to kill the Cockroaches!</h1>
+      <button id="start-btn">Start Game</button>
+
+      <div id="cockroach-container"></div>
+
+      <div id="game-over-screen">
+        <h2> Times Up!</h2>
+        <div id="final-score"></div>
+        <button id="restart-btn">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="slipper-sound" src="slipper-hit.mp3" preload="auto"></audio>
+  <audio id="bg-music" src="retro-gaming-271301.mp3" loop preload="auto"></audio>
+
+  <script>
+    let score = 0;
+    let gameTime = 90;
+    let spawnInterval, gameTimer;
+    let isMuted = false;
+    let spawnSpeed = 1000;
+    let cockroachCount = 1;
+
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const gameArea = document.getElementById('cockroach-container');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const finalScore = document.getElementById('final-score');
+    const slipperSound = document.getElementById('slipper-sound');
+    const bgMusic = document.getElementById('bg-music');
+    const timerDisplay = document.getElementById('timer');
+    const scoreDisplay = document.getElementById('score');
+    const infoBar = document.getElementById('info-bar');
+    const muteBtn = document.getElementById('mute-btn');
+    const gameWrapper = document.getElementById('game-wrapper');
+
+    function spawnCockroach() {
+      for (let i = 0; i < cockroachCount; i++) {
+        const cockroach = document.createElement('div');
+        cockroach.classList.add('cockroach');
+        const x = Math.random() * (gameArea.offsetWidth - 60);
+        const y = Math.random() * (gameArea.offsetHeight - 60);
+        cockroach.style.left = `${x}px`;
+        cockroach.style.top = `${y}px`;
+
+        cockroach.addEventListener('click', () => {
+          score++;
+          scoreDisplay.textContent = `Kills: ${score}`;
+
+          // Slipper effect
+          const slipper = document.createElement('img');
+          slipper.src = 'slipper.png';
+          slipper.style.position = 'absolute';
+          slipper.style.left = cockroach.style.left;
+          slipper.style.top = cockroach.style.top;
+          slipper.style.width = '80px';
+          slipper.style.pointerEvents = 'none';
+          slipper.style.zIndex = 1000;
+          gameArea.appendChild(slipper);
+
+          // Play sound (separately from background music)
+          if (!isMuted) {
+            slipperSound.currentTime = 0;
+            slipperSound.play();
+          }
+
+          cockroach.style.backgroundImage = "url('cockroach-dead.png')";
+
+          setTimeout(() => {
+            slipper.remove();
+            cockroach.remove();
+          }, 300);
+        });
+
+        gameArea.appendChild(cockroach);
+
+        setTimeout(() => {
+          if (gameArea.contains(cockroach)) cockroach.remove();
+        }, 2000);
+      }
+    }
+
+    function startGame() {
+      score = 0;
+      gameTime = 90;
+      spawnSpeed = 1000;
+      cockroachCount = 1;
+      scoreDisplay.textContent = `Kills: 0`;
+      timerDisplay.textContent = `Time: 90s`;
+      gameArea.innerHTML = '';
+      gameArea.style.display = 'block';
+      startBtn.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      infoBar.style.display = 'flex';
+      gameWrapper.classList.add('game-started'); // Add class to set fixed width
+      bgMusic.currentTime = 0;
+      if (!isMuted) bgMusic.play();
+
+      spawnInterval = setInterval(spawnCockroach, spawnSpeed);
+      gameTimer = setInterval(() => {
+        gameTime--;
+        timerDisplay.textContent = `Time: ${gameTime}s`;
+
+        if (gameTime % 30 === 0 && gameTime !== 0) {
+          spawnSpeed = Math.max(400, spawnSpeed - 100);
+          cockroachCount++;
+          clearInterval(spawnInterval);
+          spawnInterval = setInterval(spawnCockroach, spawnSpeed);
+        }
+
+        if (gameTime <= 0) {
+          clearInterval(spawnInterval);
+          clearInterval(gameTimer);
+          endGame();
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      gameArea.style.display = 'none';
+      gameOverScreen.style.display = 'flex';
+      finalScore.textContent = `Your Score: ${score}`;
+      infoBar.style.display = 'none';
+      bgMusic.pause();
+    }
+
+    muteBtn.addEventListener('click', () => {
+      isMuted = !isMuted;
+      muteBtn.textContent = isMuted ? '🔇' : '🔊';
+      if (isMuted) {
+        bgMusic.pause();
+      } else {
+        bgMusic.play();
+      }
+    });
+
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service Worker Registered'))
+        .catch(err => console.error('Service Worker registration failed:', err));
+    }
+  </script>
+</body>
+</html>
